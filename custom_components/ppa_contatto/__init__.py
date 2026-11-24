@@ -20,6 +20,7 @@ from .const import DOMAIN, UPDATE_INTERVAL, WEBSOCKET_HEALTH_CHECK_INTERVAL
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
     Platform.COVER,
     Platform.SWITCH,
     Platform.SENSOR,
@@ -263,6 +264,18 @@ class PPAContattoDataUpdateCoordinator(DataUpdateCoordinator):
                         latest_status["relay"] = new_relay
                         device_status["relay"] = new_relay
                         data_changed = True
+
+                # Online / offline (device/connected, device/disconnected). A status
+                # push also proves the device is online, as the Contatto app assumes.
+                new_online = update_data.get("online")
+                if new_online is None and source == "ws":
+                    new_online = True
+                if new_online is not None and device.get("online") != new_online:
+                    device["online"] = new_online
+                    _LOGGER.info("Device %s is now %s", device_serial, "online" if new_online else "offline")
+                    if not data_changed:
+                        self.async_set_updated_data(self.data)
+                        return
 
                 if data_changed:
                     # Prefer the report's metadata when this came from event replay.

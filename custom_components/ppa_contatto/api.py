@@ -394,6 +394,8 @@ class PPAContattoAPI:
 
                         if event_name == "device/status":
                             await self._handle_device_status(event_data)
+                        elif event_name in ("device/connected", "device/disconnected"):
+                            self._handle_device_connectivity(event_data, event_name == "device/connected")
                         else:
                             _LOGGER.debug("Received unknown event: %s with data: %s", event_name, event_data)
                 except json.JSONDecodeError as err:
@@ -429,6 +431,21 @@ class PPAContattoAPI:
                     self._device_update_callback(device_serial, transformed_data)
         except Exception as err:
             _LOGGER.error("Error processing device/status event: %s", err)
+
+    def _handle_device_connectivity(self, data: Any, online: bool) -> None:
+        """Handle device/connected and device/disconnected events from WebSocket.
+
+        The Contatto app reads only ``serial`` from these payloads and flips the
+        device's ``online`` flag, so we do the same.
+        """
+        try:
+            if not (self._device_update_callback and isinstance(data, dict)):
+                return
+            device_serial = data.get("serial")
+            if device_serial:
+                self._device_update_callback(device_serial, {"online": online})
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error("Error processing device connectivity event: %s", err)
 
     async def _websocket_client_keepalive(self) -> None:
         """Proactive ping + proactive recycle.

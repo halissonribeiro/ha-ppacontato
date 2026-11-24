@@ -97,6 +97,12 @@ Additional switches for device configuration:
 - **Notifications toggle**: Enable/disable notifications (`switch.abc12345_notifications`)
 - **Visibility toggles**: Show/hide gate or relay entities (`switch.abc12345_gate_visible`, `switch.abc12345_relay_visible`)
 
+### Connectivity (Binary Sensor)
+
+- **Online**: Whether the controller is connected to the PPA Contatto cloud (`binary_sensor.abc12345_online`, diagnostic)
+  - Updated in real time from the `device/connected` and `device/disconnected` WebSocket events
+  - Gate and door covers also become unavailable as soon as the device goes offline
+
 ### Sensors
 
 Additional sensors provide detailed monitoring information:
@@ -199,7 +205,7 @@ The integration uses Socket.IO v4 protocol for real-time communication:
 
 - **Connection URL**: `wss://realtime.ppacontatto.com.br/socket.io/?auth=Bearer%20TOKEN`
 - **Transport**: Direct WebSocket connection with Socket.IO protocol parsing
-- **Event Name**: `device/status` - listens for device status updates
+- **Event Names**: `device/status` (gate/relay state), `device/connected` and `device/disconnected` (device online/offline, payload `{"serial": "ABC12345"}`)
 - **Data Format**:
   ```json
   {

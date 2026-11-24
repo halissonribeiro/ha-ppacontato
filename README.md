@@ -1,5 +1,17 @@
 # PPA Contatto Home Assistant Integration
 
+> **Fork notice / Aviso de fork**
+>
+> This repository is a fork of [tarikbc/ha-ppa-contatto](https://github.com/tarikbc/ha-ppa-contatto),
+> created and maintained by **Tarik Caramanico** ([@tarikbc](https://github.com/tarikbc)).
+> All credit for the original reverse-engineering and implementation goes to him.
+> The original git history is preserved here, and the code remains under the original
+> [LICENSE](LICENSE) (MIT + usage restriction), whose copyright notice must be kept.
+>
+> Este repositório é um fork de [tarikbc/ha-ppa-contatto](https://github.com/tarikbc/ha-ppa-contatto),
+> criado por **Tarik Caramanico**. O histórico original foi preservado e o código continua sob a
+> [LICENÇA](LICENSE) original.
+
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![Project Maintenance][maintenance-shield]][user_profile]

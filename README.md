@@ -114,6 +114,11 @@ Additional sensors provide detailed monitoring information:
 - **Gate Status**: Current gate status with history (`sensor.abc12345_gate_status`)
 - **Relay Status**: Current relay status with history (`sensor.abc12345_relay_status`)
 
+### Diagnostic Sensors
+
+- **Firmware**: Controller firmware version (`sensor.abc12345_firmware`)
+- **Model**: Controller hardware model (`sensor.abc12345_model`)
+
 ### Number Entities
 
 Configuration entities for hardware behavior:

@@ -74,7 +74,30 @@ async def async_setup_entry(
                 )
             )
 
+        # Diagnostic sensors (firmware and model come straight from /devices).
+        for key, label, icon, always in DIAGNOSTIC_FIELDS:
+            if always or _first_present(device, key) is not None:
+                entities.append(
+                    PPAContattoDiagnosticSensor(coordinator, api, device, f"{serial}_{key[0]}", label, key, icon)
+                )
+
     async_add_entities(entities)
+
+
+# (candidate field names, label, icon, create even if missing)
+DIAGNOSTIC_FIELDS: List[tuple] = [
+    (("version",), "Firmware", "mdi:chip", True),
+    (("machineModel",), "Model", "mdi:information-outline", True),
+]
+
+
+def _first_present(device: Dict[str, Any], keys: tuple) -> Any:
+    """Return the first non-empty value among ``keys`` in the device payload."""
+    for key in keys:
+        value = device.get(key)
+        if value not in (None, ""):
+            return value
+    return None
 
 
 class PPAContattoBaseSensor(CoordinatorEntity, SensorEntity):
@@ -283,3 +306,22 @@ class PPAContattoStatusSensor(PPAContattoBaseSensor):
             attrs["last_user"] = latest_status["last_user"]
 
         return attrs
+
+
+class PPAContattoDiagnosticSensor(PPAContattoBaseSensor):
+    """Diagnostic sensor that mirrors one field of the device payload."""
+
+    def __init__(self, coordinator, api, device, unique_id, name, keys: tuple, icon: str):
+        """Initialize the diagnostic sensor."""
+        super().__init__(coordinator, api, device, unique_id, name)
+        self._keys = keys
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_icon = icon
+
+    @property
+    def native_value(self) -> Any:
+        """Return the field value from the latest device data."""
+        device = self._get_device_data()
+        if not device:
+            return None
+        return _first_present(device, self._keys)

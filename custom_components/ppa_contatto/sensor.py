@@ -244,9 +244,10 @@ class PPAContattoStatusSensor(PPAContattoBaseSensor):
         latest_status = device.get("latest_status", {})
 
         if self._device_type == DEVICE_TYPE_GATE:
-            status = latest_status.get("gate")
+            # Live device status first (same source as the gate cover), reports as fallback.
+            status = device.get("status", {}).get("gate")
             if status is None:
-                status = device.get("status", {}).get("gate")
+                status = latest_status.get("gate")
             return status
         else:  # relay
             status = latest_status.get("relay")

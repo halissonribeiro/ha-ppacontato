@@ -20,6 +20,7 @@ from homeassistant.components.cover import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -31,6 +32,24 @@ from .const import DEVICE_TYPE_GATE, DEVICE_TYPE_RELAY, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 GATE_OPTIMISTIC_TIMEOUT = 60.0
+GATE_OPEN = "open"
+GATE_CLOSED = "closed"
+
+
+def get_gate_state(device: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Return the gate's real position, ``"open"``, ``"closed"`` or ``None`` if unknown.
+
+    The device's live ``status`` (from ``/devices`` and real-time ``device/status``
+    pushes) is the source of truth, as in the Contatto app. The report log is only a
+    fallback because it can lag behind the actual state and briefly revert it.
+    """
+    if not device:
+        return None
+    for source in (device.get("status") or {}, device.get("latest_status") or {}):
+        value = source.get("gate")
+        if value in (GATE_OPEN, GATE_CLOSED):
+            return value
+    return None
 
 
 async def async_setup_entry(
@@ -139,12 +158,8 @@ class PPAContattoCover(CoordinatorEntity, CoverEntity):
         latest_status = device.get("latest_status", {})
 
         if self._device_type == DEVICE_TYPE_GATE:
-            # Gates: closed = "closed", open = "open"
-            latest_gate_status = latest_status.get("gate")
-            if latest_gate_status is not None:
-                return latest_gate_status == "closed"
-            # Fallback to device status
-            return device.get("status", {}).get("gate") == "closed"
+            state = get_gate_state(device)
+            return None if state is None else state == GATE_CLOSED
 
         elif self._device_type == DEVICE_TYPE_RELAY:
             # For doors controlled by relay, behavior depends on duration setting
@@ -252,7 +267,7 @@ class PPAContattoCover(CoordinatorEntity, CoverEntity):
         """Open the cover."""
         try:
             if self._device_type == DEVICE_TYPE_GATE:
-                await self._trigger_gate("opening")
+                await self._move_gate(GATE_OPEN)
             elif self._device_type == DEVICE_TYPE_RELAY and self._relay_duration != -1:
                 # For momentary doors, implement button behavior
                 await self._activate_momentary_door()
@@ -268,7 +283,7 @@ class PPAContattoCover(CoordinatorEntity, CoverEntity):
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
         if self._device_type == DEVICE_TYPE_GATE:
-            await self._trigger_gate("closing")
+            await self._move_gate(GATE_CLOSED)
         elif self._device_type == DEVICE_TYPE_RELAY and self._relay_duration == -1:
             # Toggle door in switch mode
             await self._api.control_device(self._serial, self._device_type)
@@ -276,6 +291,31 @@ class PPAContattoCover(CoordinatorEntity, CoverEntity):
         else:
             # For momentary doors, closing is the same as opening
             await self.async_open_cover(**kwargs)
+
+    async def _move_gate(self, target: str) -> None:
+        """Move the gate to ``target`` ("open" or "closed") using the toggle command.
+
+        The PPA hardware only has one toggle command: the same pulse opens a closed
+        gate and closes an open one. To get distinct open/close actions we only send
+        the pulse when the gate's known position differs from the target, so "open"
+        on an already-open gate never closes it (and vice versa).
+        """
+        optimistic = "opening" if target == GATE_OPEN else "closing"
+        if self._gate_optimistic_state == optimistic:
+            _LOGGER.debug("Gate %s is already %s, ignoring repeated command", self._serial, optimistic)
+            return
+
+        current = get_gate_state(self._get_device_data())
+        if current == target and self._gate_optimistic_state is None:
+            _LOGGER.info("Gate %s is already %s, not sending toggle", self._serial, target)
+            return
+        if current is None:
+            raise HomeAssistantError(
+                f"Gate {self._serial} position is unknown, so the toggle command was not sent "
+                f"(it could {('close' if target == GATE_OPEN else 'open')} the gate instead)"
+            )
+
+        await self._trigger_gate(optimistic)
 
     async def _trigger_gate(self, optimistic: str) -> None:
         """Trigger the gate and set optimistic state ('opening' or 'closing')."""
@@ -415,10 +455,8 @@ class PPAContattoCover(CoordinatorEntity, CoverEntity):
     def _handle_coordinator_update(self) -> None:
         """Clear optimistic gate state once real status catches up."""
         if self._device_type == DEVICE_TYPE_GATE and self._gate_optimistic_state is not None:
-            device = self._get_device_data() or {}
-            latest = device.get("latest_status", {}) or {}
-            actual = latest.get("gate") or device.get("status", {}).get("gate")
-            target = "open" if self._gate_optimistic_state == "opening" else "closed"
+            actual = get_gate_state(self._get_device_data())
+            target = GATE_OPEN if self._gate_optimistic_state == "opening" else GATE_CLOSED
             if actual == target:
                 self._gate_optimistic_state = None
                 if self._gate_optimistic_task and not self._gate_optimistic_task.done():

@@ -85,6 +85,8 @@ This integration supports configuration through the UI only. Manual YAML configu
 The integration creates cover entities for each gate and door that is configured to be shown in your PPA Contatto account:
 
 - **Gate covers**: Control gate opening/closing (e.g., `cover.abc12345_gate`) - Gates may stay open for extended periods
+  - **Separate open and close**: the PPA hardware has a single toggle command, so the integration only sends it when the gate's known position differs from the requested one. `cover.open_cover` on an open gate (or `cover.close_cover` on a closed gate) does nothing, so it never closes when you asked to open. If the position is unknown, the command is refused instead of guessing.
+  - **Position source**: the device's live status (REST `/devices` plus real-time `device/status` pushes), the same source as the Contatto app. The report log is only a fallback.
 - **Door covers**: Control doors via relay (e.g., `cover.abc12345_door`) - Behavior depends on relay duration setting:
   - **Momentary mode** (positive duration): Acts like a button press, shows "opening" during activation
   - **Toggle mode** (-1 duration): Acts as on/off switch, door stays open/closed until toggled
